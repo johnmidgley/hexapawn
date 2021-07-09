@@ -1,0 +1,53 @@
+(ns hexapawn.core)
+
+(defn start-board []
+  [[:black :black :black]
+   [:empty :empty :empty]
+   [:white :white :white]])
+
+(defn valid-pos [[row col :as pos]]
+  (and (>= row 0) (< row 3) (>= col 0) (< col 3) pos))
+
+(def moves [:advance :capture-left :capture-right])
+
+(def opposite-player
+  {:black :white
+   :white :black})
+
+(defn new-game [start-player]
+  {:player start-player
+   :board (start-board)})
+
+(defn end-pos [player [row col] move]
+  (let [i (case player
+            :black 1
+            :white -1)]
+    (valid-pos (case move
+                 :advance      [(+ row i) col]
+                 :attack-left  [(+ row i) (+ col i)]
+                 :attack-right [(+ row i) (- col i)]))))
+
+(defn valid-move? [game player [row col :as pos] move]
+  (and
+   (= (:player game) player)
+   (= (get-in game [:board row col]) player)
+   (when-let [e-pos (end-pos player pos move)]
+     (let [[end-row end-col] e-pos 
+           end-v (get-in game [:board end-row end-col])]
+       (case move
+         :advance (= end-v :empty)
+         :attack-left (= end-v (opposite-player player))
+         :attack=right (= end-v (opposite-player player)))))))
+
+(defn map-indexed2 [f coll]
+  (->> coll
+       (map-indexed (fn [i is] 
+                      (map-indexed (fn [j v] (apply f [[i j] v])) is)))
+       (reduce concat)))
+
+(defn next-moves [game]
+  (let [player (:player game)] 
+    (->> (:board game) 
+         (map-indexed2 vector)
+         (filter #(= player (second %))))))
+
