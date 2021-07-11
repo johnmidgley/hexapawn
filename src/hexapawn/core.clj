@@ -8,7 +8,7 @@
 (defn valid-pos [[row col :as pos]]
   (and (>= row 0) (< row 3) (>= col 0) (< col 3) pos))
 
-(def moves [:advance :capture-left :capture-right])
+(def actions #{:advance :capture-left :capture-right})
 
 (def opposite-player
   {:black :white
@@ -24,30 +24,40 @@
             :white -1)]
     (valid-pos (case move
                  :advance      [(+ row i) col]
-                 :attack-left  [(+ row i) (+ col i)]
-                 :attack-right [(+ row i) (- col i)]))))
+                 :capture-left  [(+ row i) (+ col i)]
+                 :capture-right [(+ row i) (- col i)]))))
 
-(defn valid-move? [game player [row col :as pos] move]
+(defn valid-move? [game player [row col :as pos] action]
   (and
    (= (:player game) player)
    (= (get-in game [:board row col]) player)
-   (when-let [e-pos (end-pos player pos move)]
+   (when-let [e-pos (end-pos player pos action)]
      (let [[end-row end-col] e-pos 
            end-v (get-in game [:board end-row end-col])]
-       (case move
+       (case action
          :advance (= end-v :empty)
-         :attack-left (= end-v (opposite-player player))
-         :attack=right (= end-v (opposite-player player)))))))
+         :capture-left (= end-v (opposite-player player))
+         :capture-right (= end-v (opposite-player player)))))))
 
 (defn map-indexed2 [f coll]
   (->> coll
-       (map-indexed (fn [i is] 
-                      (map-indexed (fn [j v] (apply f [[i j] v])) is)))
+       (map-indexed 
+        (fn [i is] 
+          (map-indexed 
+           (fn [j v] (apply f [[i j] v])) is)))
        (reduce concat)))
+
+(defn get-positions [game player]
+  (->> (:board game) 
+       (map-indexed2 vector)
+       (filter #(= player (second %)))))
 
 (defn next-moves [game]
   (let [player (:player game)] 
-    (->> (:board game) 
-         (map-indexed2 vector)
-         (filter #(= player (second %))))))
+    (->>
+     (for [[pos _] (get-positions game (:player game))]
+       (for [a actions]
+         [player pos a]))
+     (reduce concat)
+     (filter (fn [[pl ps a]] (valid-move? game pl ps a))))))
 
